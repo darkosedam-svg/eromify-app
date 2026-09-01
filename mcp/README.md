@@ -107,6 +107,8 @@ Useful flags: `--scope project`, `--name <server-name>`, `--api-url <url>`, `--f
 
 ## Development
 
+Requires Node 20 or newer.
+
 ```bash
 npm install --prefix mcp
 npm test --prefix mcp
@@ -115,3 +117,7 @@ npm test --prefix mcp
 The test suite starts a stub Eromify API, launches the real server as a subprocess, and drives it
 with an MCP client over stdio — checking the tool surface, bearer auth, URL encoding and error
 mapping — then exercises the config installer against a temporary home directory.
+
+`.github/workflows/mcp.yml` runs the same suite on Node 20 and 22 for every push and pull request
+that touches `mcp/`, and smoke-checks that the CLI's `--help`, `tools` and `install --dry-run`
+paths still run.
