@@ -1,6 +1,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken } = require('../middleware/auth');
+const { FREE_PLAN, getPlanLimits, normalizePlan } = require('../config/plans');
 const Joi = require('joi');
 
 const supabase = createClient(
@@ -9,6 +10,26 @@ const supabase = createClient(
 );
 
 const router = express.Router();
+
+/**
+ * Shape a user row into the subscription object the API returns.
+ * Returns null for users who have never subscribed.
+ */
+function describeSubscription(user) {
+  const plan = normalizePlan(user?.subscription_plan);
+  if (plan === FREE_PLAN) return null;
+
+  const limits = getPlanLimits(plan);
+  return {
+    plan,
+    billing: user?.subscription_billing ?? null,
+    status: 'active',
+    credits: user?.credits ?? null,
+    influencerTrainings: user?.influencer_trainings ?? null,
+    limits
+  };
+}
+
 
 // Validation schemas
 const updateProfileSchema = Joi.object({
@@ -33,13 +54,8 @@ router.get('/profile', authenticateToken, async (req, res) => {
       });
     }
 
-    // Get user's subscription info
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
-      .single();
+    // Subscription state lives on the user row — see config/plans.js
+    const subscription = describeSubscription(user);
 
     // Get user's stats
     const { count: influencerCount } = await supabase
@@ -208,14 +224,13 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 // Get user subscription info
 router.get('/subscription', authenticateToken, async (req, res) => {
   try {
-    const { data: subscription, error } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('subscription_plan, subscription_billing, credits, influencer_trainings')
+      .eq('id', req.user.id)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+    if (error) {
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch subscription'
@@ -224,7 +239,7 @@ router.get('/subscription', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      subscription: subscription || null
+      subscription: describeSubscription(user)
     });
 
   } catch (error) {

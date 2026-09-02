@@ -3,6 +3,7 @@ const router = express.Router();
 require('dotenv').config();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY?.trim());
 const { createClient } = require('@supabase/supabase-js');
+const { PRICING_PLANS } = require('./config/plans');
 
 // Use fallback values for development if env vars are not set
 const supabaseUrl = process.env.SUPABASE_URL || 'https://eyteuevblxvhjhyeivqh.supabase.co';
@@ -10,45 +11,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Pricing plans configuration (copied from payments.js)
-const PRICING_PLANS = {
-  builder: {
-    monthly: {
-      price: 1500, // $15.00 in cents
-      credits: 500,
-      influencerTrainings: 1
-    },
-    yearly: {
-      price: 14400, // $144.00 in cents
-      credits: 500,
-      influencerTrainings: 1
-    }
-  },
-  launch: {
-    monthly: {
-      price: 2900, // $29.00 in cents
-      credits: 2000,
-      influencerTrainings: 2
-    },
-    yearly: {
-      price: 27600, // $276.00 in cents
-      credits: 2000,
-      influencerTrainings: 2
-    }
-  },
-  growth: {
-    monthly: {
-      price: 7900, // $79.00 in cents
-      credits: null, // Unlimited
-      influencerTrainings: null // Unlimited
-    },
-    yearly: {
-      price: 78000, // $780.00 in cents
-      credits: null,
-      influencerTrainings: null
-    }
-  }
-};
 
 // This route must be mounted before express.json so we can verify the signature
 router.post('/', express.raw({ type: 'application/json' }), async (req, res) => {

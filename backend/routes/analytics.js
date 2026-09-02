@@ -1,6 +1,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken } = require('../middleware/auth');
+const { getPlanLimits, normalizePlan } = require('../config/plans');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -197,13 +198,15 @@ router.get('/usage', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get user's subscription
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
+    // Get the user's plan from the column the Stripe webhook writes
+    const { data: user } = await supabase
+      .from('users')
+      .select('subscription_plan')
+      .eq('id', userId)
       .single();
+
+    const userPlan = normalizePlan(user?.subscription_plan);
+    const userLimits = getPlanLimits(userPlan);
 
     // Get current month usage
     const now = new Date();
@@ -215,28 +218,30 @@ router.get('/usage', authenticateToken, async (req, res) => {
       .eq('user_id', userId)
       .gte('created_at', startOfMonth.toISOString());
 
-    // Define limits based on plan
-    const limits = {
-      free: { content: 10, influencers: 3 },
-      basic: { content: 100, influencers: 10 },
-      pro: { content: 500, influencers: 50 },
-      enterprise: { content: 2000, influencers: 200 }
-    };
+    const { count: influencerCount } = await supabase
+      .from('influencers')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
 
-    const userPlan = subscription?.plan || 'free';
-    const userLimits = limits[userPlan];
+    // null limits mean unlimited, so the remaining count is null too
+    const contentLimit = userLimits.contentPerMonth;
+    const remainingContent =
+      contentLimit === null ? null : Math.max(0, contentLimit - (monthlyContent || 0));
 
     res.json({
       success: true,
       usage: {
         current: {
           content: monthlyContent || 0,
-          influencers: 0 // Will be calculated separately
+          influencers: influencerCount || 0
         },
-        limits: userLimits,
+        limits: {
+          content: contentLimit,
+          influencers: userLimits.influencers
+        },
         plan: userPlan,
         remaining: {
-          content: Math.max(0, userLimits.content - (monthlyContent || 0))
+          content: remainingContent
         }
       }
     });
