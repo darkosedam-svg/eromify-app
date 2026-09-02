@@ -1,0 +1,33 @@
+{
+  "name": "eromify-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for Eromify — manage AI influencers and generate content from Claude and other MCP clients.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "eromify-mcp": "bin/eromify-mcp.js"
+  },
+  "main": "src/server.js",
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node bin/eromify-mcp.js serve",
+    "test": "node test/smoke.test.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "eromify",
+    "claude",
+    "ai-influencer"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  }
+}

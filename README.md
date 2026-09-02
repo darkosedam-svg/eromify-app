@@ -53,9 +53,23 @@ This will start both the backend (port 3001) and frontend (port 5173) servers.
 eromify/
 ├── backend/          # Express.js API server
 ├── frontend/         # React frontend application
+├── mcp/              # MCP server exposing the API to Claude and other clients
 ├── shared/           # Shared utilities and types
 └── docs/            # Documentation
 ```
+
+## MCP Server
+
+`mcp/` ships an MCP server that exposes the Eromify API as tools, so you can manage influencers
+and generate content from Claude or another MCP client:
+
+```bash
+npm install --prefix mcp
+npx ./mcp install --client claude
+npx ./mcp login
+```
+
+See [mcp/README.md](mcp/README.md) for the full tool list and the other supported clients.
 
 ## Development
 
