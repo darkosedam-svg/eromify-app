@@ -105,6 +105,31 @@ eromify-mcp --help
 
 Useful flags: `--scope project`, `--name <server-name>`, `--api-url <url>`, `--force`, `--dry-run`.
 
+## Releasing
+
+Publishing is deliberate: nothing goes to npm on a merge. `.github/workflows/publish-mcp.yml`
+runs the test suite and the CLI smoke checks, then publishes with
+[provenance](https://docs.npmjs.com/generating-provenance-statements).
+
+One-time setup: create an npm **automation** token with publish rights and add it to the
+repository as a secret named `NPM_TOKEN` (Settings → Secrets and variables → Actions).
+
+To cut a release, bump the version and push a matching tag:
+
+```bash
+npm version patch --prefix mcp     # or minor / major
+git push origin main --follow-tags
+git tag eromify-mcp-v$(node -p "require('./mcp/package.json').version")
+git push origin --tags
+```
+
+The workflow refuses to publish if the tag's version disagrees with `package.json` — a
+mismatch would ship the wrong version under the right name, which npm will not let you undo.
+Run it from the Actions tab with **Dry run** checked to validate without publishing.
+
+Once published, `npx eromify-mcp install --client claude` works from anywhere, and `install`
+writes `npx -y eromify-mcp` into client configs instead of a local path.
+
 ## Development
 
 Requires Node 20 or newer.

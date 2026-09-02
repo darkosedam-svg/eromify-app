@@ -1,0 +1,77 @@
+name: Publish eromify-mcp
+
+# Publishing is manual and deliberate: push a tag matching the package version,
+# or run the workflow by hand. Nothing publishes on a merge to main.
+on:
+  push:
+    tags:
+      - 'eromify-mcp-v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack and validate without publishing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mcp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Check the CLI runs
+        run: |
+          node bin/eromify-mcp.js --help
+          node bin/eromify-mcp.js tools
+          node bin/eromify-mcp.js install --client claude --dry-run
+
+      # A tag that disagrees with package.json publishes the wrong version
+      # under the right name, which cannot be undone. Fail before that happens.
+      - name: Verify the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag_version="${GITHUB_REF_NAME#eromify-mcp-v}"
+          pkg_version="$(node -p 'require("./package.json").version')"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME implies version $tag_version, but package.json says $pkg_version."
+            exit 1
+          fi
+          echo "Publishing version $pkg_version"
+
+      - name: Check the token is present
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "::error::NPM_TOKEN is not set. Add an npm automation token as a repository secret named NPM_TOKEN."
+            exit 1
+          fi
+
+      - name: Show what would be published
+        run: npm publish --dry-run --access public --provenance
+
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/') && inputs.dry_run != true
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
