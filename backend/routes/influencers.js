@@ -1,6 +1,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken, requireSubscription } = require('../middleware/auth');
+const { MIN_PAID_PLAN, getPlanLimits, withinLimit } = require('../config/plans');
 const Joi = require('joi');
 
 const supabase = createClient(
@@ -82,7 +83,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create new influencer
-router.post('/', authenticateToken, requireSubscription('free'), async (req, res) => {
+router.post('/', authenticateToken, requireSubscription(MIN_PAID_PLAN), async (req, res) => {
   try {
     const { error, value } = createInfluencerSchema.validate(req.body);
     if (error) {
@@ -94,26 +95,18 @@ router.post('/', authenticateToken, requireSubscription('free'), async (req, res
 
     const { name, description, niche, personality, targetAudience, contentStyle } = value;
 
-    // Check user's influencer limit based on subscription
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('plan')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
-      .single();
-
-    const limits = { free: 3, basic: 10, pro: 50, enterprise: 200 };
-    const limit = limits[subscription?.plan] || 3;
+    // Check the user's influencer allowance for their plan
+    const { influencers: limit } = getPlanLimits(req.subscription.plan);
 
     const { count } = await supabase
       .from('influencers')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', req.user.id);
 
-    if (count >= limit) {
+    if (!withinLimit(count, limit)) {
       return res.status(403).json({
         success: false,
-        error: `Influencer limit reached. Upgrade your plan to create more influencers.`
+        error: `Influencer limit reached (${limit}). Upgrade your plan to create more influencers.`
       });
     }
 

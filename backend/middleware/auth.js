@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const { FREE_PLAN, normalizePlan, planMeets } = require('../config/plans');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -64,49 +65,61 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
-const requireSubscription = (plan) => {
+/**
+ * Gate a route behind a minimum plan.
+ *
+ * Reads users.subscription_plan — the column the Stripe webhook actually
+ * writes. This previously queried a `subscriptions` table that nothing in the
+ * codebase ever inserts into, so every request (paying customers included)
+ * fell through to "Active subscription required".
+ */
+const requireSubscription = (requiredPlan) => {
   return async (req, res, next) => {
     try {
       if (!req.user) {
-        return res.status(401).json({ 
-          success: false, 
-          error: 'Authentication required' 
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required'
         });
       }
 
-      // Get user subscription from database
-      const { data: subscription, error } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', req.user.id)
-        .eq('status', 'active')
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('subscription_plan, subscription_billing, credits, influencer_trainings')
+        .eq('id', req.user.id)
         .single();
 
-      if (error || !subscription) {
-        return res.status(403).json({ 
-          success: false, 
-          error: 'Active subscription required' 
+      if (error) {
+        console.error('Subscription lookup failed:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Subscription verification error'
         });
       }
 
-      // Check if user's plan meets requirements
-      const planLevels = { free: 0, basic: 1, pro: 2, enterprise: 3 };
-      const userPlanLevel = planLevels[subscription.plan] || 0;
-      const requiredPlanLevel = planLevels[plan] || 0;
+      const plan = normalizePlan(user?.subscription_plan);
 
-      if (userPlanLevel < requiredPlanLevel) {
-        return res.status(403).json({ 
-          success: false, 
-          error: `Upgrade to ${plan} plan required` 
+      if (!planMeets(plan, requiredPlan)) {
+        return res.status(403).json({
+          success: false,
+          error: plan === FREE_PLAN
+            ? 'Active subscription required'
+            : `Upgrade to the ${requiredPlan} plan to use this feature`
         });
       }
 
-      req.subscription = subscription;
+      req.subscription = {
+        plan,
+        billing: user?.subscription_billing ?? null,
+        credits: user?.credits ?? null,
+        influencerTrainings: user?.influencer_trainings ?? null
+      };
       next();
     } catch (error) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Subscription verification error' 
+      console.error('Subscription middleware error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Subscription verification error'
       });
     }
   };

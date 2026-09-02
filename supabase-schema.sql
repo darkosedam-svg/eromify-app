@@ -11,15 +11,24 @@ CREATE TABLE public.users (
     full_name TEXT NOT NULL,
     avatar_url TEXT,
     bio TEXT,
+    -- Subscription state. The Stripe webhook writes these columns and every
+    -- plan gate reads them; see backend/config/plans.js. NULL plan = no
+    -- subscription. NULL credits / influencer_trainings = unlimited (growth).
+    subscription_plan TEXT CHECK (subscription_plan IN ('builder', 'launch', 'growth')),
+    subscription_billing TEXT CHECK (subscription_billing IN ('monthly', 'yearly')),
+    credits INTEGER,
+    influencer_trainings INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Subscriptions table
+-- Legacy: retained for Stripe bookkeeping and read as a fallback in
+-- routes/payments.js. Plan gating reads public.users instead.
 CREATE TABLE public.subscriptions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-    plan TEXT NOT NULL CHECK (plan IN ('free', 'basic', 'pro', 'enterprise')),
+    plan TEXT NOT NULL CHECK (plan IN ('builder', 'launch', 'growth')),
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'past_due')),
     stripe_subscription_id TEXT,
     current_period_start TIMESTAMP WITH TIME ZONE,

@@ -1,6 +1,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken, requireSubscription } = require('../middleware/auth');
+const { MIN_PAID_PLAN, getPlanLimits, withinLimit } = require('../config/plans');
 const OpenAI = require('openai');
 const Joi = require('joi');
 const { generateImageWithFaceConsistency } = require('../services/replicateService');
@@ -35,7 +36,7 @@ const generateContentSchema = Joi.object({
 });
 
 // Generate content using AI
-router.post('/generate', authenticateToken, requireSubscription('free'), async (req, res) => {
+router.post('/generate', authenticateToken, requireSubscription(MIN_PAID_PLAN), async (req, res) => {
   try {
     const { error, value } = generateContentSchema.validate(req.body);
     if (error) {
@@ -62,16 +63,8 @@ router.post('/generate', authenticateToken, requireSubscription('free'), async (
       });
     }
 
-    // Check user's content generation limit
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('plan')
-      .eq('user_id', req.user.id)
-      .eq('status', 'active')
-      .single();
-
-    const limits = { free: 10, basic: 100, pro: 500, enterprise: 2000 };
-    const dailyLimit = limits[subscription?.plan] || 10;
+    // Check the user's daily content allowance for their plan
+    const { contentPerDay: dailyLimit } = getPlanLimits(req.subscription.plan);
 
     // Count today's generated content
     const today = new Date().toISOString().split('T')[0];
@@ -81,7 +74,7 @@ router.post('/generate', authenticateToken, requireSubscription('free'), async (
       .eq('user_id', req.user.id)
       .gte('created_at', today);
 
-    if (count >= dailyLimit) {
+    if (!withinLimit(count, dailyLimit)) {
       return res.status(429).json({
         success: false,
         error: `Daily content generation limit reached (${dailyLimit}). Upgrade your plan for more generations.`
@@ -227,7 +220,7 @@ async function checkAndDeductCredits(userId, cost) {
 }
 
 // Generate AI image
-router.post('/generate-image', authenticateToken, requireSubscription('free'), async (req, res) => {
+router.post('/generate-image', authenticateToken, requireSubscription(MIN_PAID_PLAN), async (req, res) => {
   try {
     const { influencerId, prompt, style, size = '1024x1024' } = req.body;
 
@@ -327,7 +320,7 @@ router.post('/generate-image', authenticateToken, requireSubscription('free'), a
 });
 
 // Generate AI video from image
-router.post('/generate-video', authenticateToken, requireSubscription('free'), async (req, res) => {
+router.post('/generate-video', authenticateToken, requireSubscription(MIN_PAID_PLAN), async (req, res) => {
   try {
     const { imageUrl, prompt, duration = 5, influencerId } = req.body;
 
@@ -436,7 +429,7 @@ router.get('/video-status/:jobId', authenticateToken, async (req, res) => {
 });
 
 // Upscale image
-router.post('/upscale-image', authenticateToken, requireSubscription('free'), async (req, res) => {
+router.post('/upscale-image', authenticateToken, requireSubscription(MIN_PAID_PLAN), async (req, res) => {
   try {
     const { imageUrl, scale = 2 } = req.body;
 
