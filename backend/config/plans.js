@@ -12,20 +12,24 @@
  * Prices are in cents. `price` on a yearly entry is the full annual charge,
  * not a monthly rate.
  *
- * These MUST match what LandingPage.jsx and GetCreditsPage.jsx advertise —
- * they are what Stripe actually charges (payments.js passes `price` straight
- * to `unit_amount`). They drifted once already: builder and launch billed
- * $15/$29 a month against advertised $12/$25, so every subscriber on those
- * tiers was overcharged. plans.test.js now pins them.
+ * These MUST match what the DEPLOYED frontend advertises — they are what
+ * Stripe actually charges, since payments.js passes `price` straight to
+ * `unit_amount`. The deployed frontend is `frontend/`, not the root `src/`:
+ * all three deploy scripts build and `vercel --prod` from frontend/, and it
+ * is the tree holding vercel.json. The root `src/` tree is a stale fork that
+ * still quotes $12/$25 and ships nowhere; do not price against it.
+ *
+ * Source of truth: frontend/src/pages/LandingPage.jsx and
+ * frontend/src/pages/GetCreditsPage.jsx. plans.test.js pins these numbers.
  */
 const PRICING_PLANS = {
   builder: {
-    monthly: { price: 1200, credits: 500, influencerTrainings: 1 },
-    yearly: { price: 10800, credits: 500, influencerTrainings: 1 },
+    monthly: { price: 1500, credits: 500, influencerTrainings: 1 },
+    yearly: { price: 14400, credits: 500, influencerTrainings: 1 },
   },
   launch: {
-    monthly: { price: 2500, credits: 2000, influencerTrainings: 2 },
-    yearly: { price: 22800, credits: 2000, influencerTrainings: 2 },
+    monthly: { price: 2900, credits: 2000, influencerTrainings: 2 },
+    yearly: { price: 27600, credits: 2000, influencerTrainings: 2 },
   },
   growth: {
     // null means unlimited, here and everywhere downstream.
