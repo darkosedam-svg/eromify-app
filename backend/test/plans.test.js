@@ -80,6 +80,42 @@ assert.equal(growth.contentPerDay, null);
 assert.equal(PRICING_PLANS.growth.monthly.credits, null);
 console.log('✓ growth is unlimited across pricing and limits');
 
+// Prices must match what the pricing pages advertise. Builder and launch
+// once billed $15/$29 monthly against an advertised $12/$25, overcharging
+// every subscriber on those tiers; these assertions pin the numbers so the
+// checkout and the marketing pages cannot drift apart again unnoticed.
+// Yearly `price` is the full annual charge, not a monthly rate.
+const ADVERTISED = {
+  builder: { monthly: 1200, yearly: 10800 },
+  launch: { monthly: 2500, yearly: 22800 },
+  growth: { monthly: 7900, yearly: 78000 },
+};
+for (const [plan, prices] of Object.entries(ADVERTISED)) {
+  assert.equal(
+    PRICING_PLANS[plan].monthly.price,
+    prices.monthly,
+    `${plan} monthly must charge the advertised price`
+  );
+  assert.equal(
+    PRICING_PLANS[plan].yearly.price,
+    prices.yearly,
+    `${plan} yearly must charge the advertised price`
+  );
+}
+assert.deepEqual(
+  Object.keys(PRICING_PLANS).sort(),
+  Object.keys(ADVERTISED).sort(),
+  'a plan was added or removed without pinning its advertised price'
+);
+// Paying for a year must never cost more than twelve monthly charges.
+for (const plan of Object.keys(PRICING_PLANS)) {
+  assert.ok(
+    PRICING_PLANS[plan].yearly.price < PRICING_PLANS[plan].monthly.price * 12,
+    `${plan} yearly must be cheaper than paying monthly`
+  );
+}
+console.log('\u2713 checkout prices match the advertised prices');
+
 // The two former copies of PRICING_PLANS are now one: both modules that used
 // to carry their own must still load against the shared config.
 // These modules build their Stripe/Supabase clients at require time.
