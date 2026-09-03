@@ -80,14 +80,17 @@ assert.equal(growth.contentPerDay, null);
 assert.equal(PRICING_PLANS.growth.monthly.credits, null);
 console.log('✓ growth is unlimited across pricing and limits');
 
-// Prices must match what the pricing pages advertise. Builder and launch
-// once billed $15/$29 monthly against an advertised $12/$25, overcharging
-// every subscriber on those tiers; these assertions pin the numbers so the
-// checkout and the marketing pages cannot drift apart again unnoticed.
+// Prices must match what the DEPLOYED frontend advertises. The deployed tree
+// is `frontend/`, not the root `src/` — every deploy script builds and ships
+// frontend/, while src/ is a stale fork quoting $12/$25 that reaches nobody.
+// Pricing against src/ once set checkout $3-4/mo BELOW the advertised price;
+// these assertions pin the deployed numbers so that cannot recur silently.
 // Yearly `price` is the full annual charge, not a monthly rate.
+//
+// Source: frontend/src/pages/{LandingPage,GetCreditsPage}.jsx
 const ADVERTISED = {
-  builder: { monthly: 1200, yearly: 10800 },
-  launch: { monthly: 2500, yearly: 22800 },
+  builder: { monthly: 1500, yearly: 14400 },
+  launch: { monthly: 2900, yearly: 27600 },
   growth: { monthly: 7900, yearly: 78000 },
 };
 for (const [plan, prices] of Object.entries(ADVERTISED)) {
