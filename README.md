@@ -30,33 +30,45 @@ A powerful SaaS platform that generates AI-powered influencer content and profil
 
 ### Installation
 
+The backend and the frontend are separate packages with their own dependencies.
+There is no root `package.json`; install and run each one from its own directory.
+
 1. Clone the repository
 2. Install dependencies:
    ```bash
-   npm run install:all
+   npm install --prefix backend
+   npm install --prefix frontend
    ```
 
 3. Set up environment variables:
-   - Copy `.env.example` to `.env` in both `backend/` and `frontend/` directories
+   - Copy `backend/env.example` to `backend/.env` and `frontend/env.example` to `frontend/.env`
    - Fill in your Supabase and OpenAI credentials
 
-4. Start development servers:
+4. Start the development servers, in two terminals:
    ```bash
-   npm run dev
+   npm run dev --prefix backend     # API on http://localhost:3001
+   npm run dev --prefix frontend    # app on http://localhost:5173
    ```
 
-This will start both the backend (port 3001) and frontend (port 5173) servers.
-
-## Project Structure
+## Repository layout
 
 ```
-eromify/
-├── backend/          # Express.js API server
-├── frontend/         # React frontend application
+eromify-app/
+├── backend/          # Express API server
+├── frontend/         # React + Vite app — THE deployed frontend (Vercel)
 ├── mcp/              # MCP server exposing the API to Claude and other clients
-├── shared/           # Shared utilities and types
-└── docs/            # Documentation
+├── integrations/     # Workflow source for external automation (n8n)
+├── deployment/       # Committed build output from deploy.sh — not source
+└── supabase-schema.sql
 ```
+
+**`frontend/` is the only frontend.** Every deploy script builds and ships it, and it
+holds the Vercel configuration. Until September 2026 the repository also carried a second,
+older copy of the app at the root (`src/`, `index.html`, `vite.config.js`); it was abandoned in
+October 2025, reached no user, and had drifted far enough from `frontend/` — different
+prices, different pages, different auth context — that changes made there were silently
+lost, and comparisons against it produced wrong conclusions. It has been removed. If you find
+yourself editing a frontend file that is not under `frontend/`, stop: it does not ship.
 
 ## MCP Server
 
