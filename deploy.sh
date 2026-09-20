@@ -59,10 +59,13 @@ cd ..
 
 # Create deployment package
 echo "📦 Creating deployment package..."
+# Start from a clean directory: `cp -r X Y` copies INTO Y when Y already
+# exists, so a second run used to produce deployment/frontend/dist and
+# deployment/backend/backend instead of overwriting.
+rm -rf deployment
 mkdir -p deployment
 cp -r frontend/dist deployment/frontend
 cp -r backend deployment/backend
-cp -r deployment/backend/node_modules deployment/backend/
 cp deployment/backend/.env.production deployment/backend/.env
 
 # Create deployment README
