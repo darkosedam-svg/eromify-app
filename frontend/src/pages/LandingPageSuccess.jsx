@@ -666,7 +666,7 @@ const LandingPageSuccess = () => {
                     <svg className="w-4 h-4 text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
-                    <span className="text-yellow-400 font-medium text-sm">8,000 credits</span>
+                    <span className="text-yellow-400 font-medium text-sm">Unlimited credits</span>
                   </div>
                 </div>
                 
@@ -676,7 +676,7 @@ const LandingPageSuccess = () => {
                 <svg className="w-4 h-4 text-purple-400 mr-2" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
-                <span className="text-purple-400 font-medium text-sm">5 Influencer Trainings</span>
+                <span className="text-purple-400 font-medium text-sm">Unlimited Influencer Trainings</span>
               </div>
             </div>
           </div>
@@ -694,13 +694,13 @@ const LandingPageSuccess = () => {
                   <svg className="w-4 h-4 text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-sm">5 Influencer trainings</span>
+                  <span className="text-sm">Unlimited influencer trainings</span>
                 </div>
                 <div className="flex items-center">
                   <svg className="w-4 h-4 text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-sm">8,000 credits/month</span>
+                  <span className="text-sm">Unlimited credits</span>
                 </div>
                 <div className="flex items-center">
                   <svg className="w-4 h-4 text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
