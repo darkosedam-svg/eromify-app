@@ -5,11 +5,17 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { createRequire } from 'node:module';
+
 import { EromifyClient } from './client.js';
 import { findTool, toolDescriptors } from './tools.js';
 
+// The version the server reports to clients is the package version, so a
+// release bump in package.json cannot drift from what clients see.
+const { version: PACKAGE_VERSION } = createRequire(import.meta.url)('../package.json');
+
 export const SERVER_NAME = 'eromify';
-export const SERVER_VERSION = '0.1.0';
+export const SERVER_VERSION = PACKAGE_VERSION;
 
 const INSTRUCTIONS = [
   'Eromify manages AI influencers and the images, videos and captions they post.',

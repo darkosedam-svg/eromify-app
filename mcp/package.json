@@ -1,6 +1,6 @@
 {
   "name": "eromify-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Model Context Protocol server for Eromify — manage AI influencers and generate content from Claude and other MCP clients.",
   "type": "module",
   "license": "MIT",

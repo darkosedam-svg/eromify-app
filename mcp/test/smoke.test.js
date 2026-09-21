@@ -13,6 +13,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const BIN = fileURLToPath(new URL('../bin/eromify-mcp.js', import.meta.url));
+const PKG = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const requests = [];
 
 function startStubApi() {
@@ -49,6 +50,11 @@ async function run() {
   });
   const client = new Client({ name: 'smoke-test', version: '0.0.0' });
   await client.connect(transport);
+
+  // The version the server advertises must be the package version, so a
+  // release bump in package.json cannot silently drift from what clients see.
+  assert.equal(client.getServerVersion()?.version, PKG.version, 'server must report the package version');
+  console.log('\u2713 server reports the package version');
 
   const { tools } = await client.listTools();
   assert.ok(tools.length >= 15, `expected the full tool surface, got ${tools.length}`);
