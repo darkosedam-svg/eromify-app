@@ -50,6 +50,24 @@ There is no root `package.json`; install and run each one from its own directory
    npm run dev --prefix frontend    # app on http://localhost:5173
    ```
 
+## Video generation providers
+
+Image-to-video jobs go to whichever provider `VIDEO_PROVIDER` names in `backend/.env`:
+
+| `VIDEO_PROVIDER` | Service | Config |
+| --- | --- | --- |
+| `runway` (default) | Runway image-to-video | `RUNWAY_API_KEY` |
+| `pornworks` | PornWorks image-to-video, for content Runway's moderation rejects | `PORNWORKS_API_KEY`, `PORNWORKS_API_BASE` |
+
+Job ids returned to clients are prefixed with the provider (`pornworks:…`), so a status
+check always reaches the provider that started the job, even after switching providers.
+If a provider rejects a job, the credits it would have cost are refunded.
+
+The PornWorks request and response mapping is confined to the `CONTRACT` block in
+`backend/services/pornworksService.js`, with a stub server in
+`backend/test/video-provider.test.js` that mirrors it. Adjust both together when the
+API's documented field names differ.
+
 ## Repository layout
 
 ```
