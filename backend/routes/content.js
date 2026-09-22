@@ -5,7 +5,7 @@ const { MIN_PAID_PLAN, getPlanLimits, withinLimit } = require('../config/plans')
 const OpenAI = require('openai');
 const Joi = require('joi');
 const { generateImageWithFaceConsistency } = require('../services/replicateService');
-const { generateVideoFromImage, checkGenerationStatus } = require('../services/runwayService');
+const { generateVideoFromImage, checkGenerationStatus } = require('../services/video');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -219,6 +219,25 @@ async function checkAndDeductCredits(userId, cost) {
   return { success: true, remaining: user.credits - cost };
 }
 
+// Give credits back when a job never started, so a provider rejection does
+// not cost the user anything. Unlimited (null) accounts have nothing to refund.
+async function refundCredits(userId, cost) {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('credits')
+    .eq('id', userId)
+    .single();
+
+  if (error || user.credits === null) return;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ credits: user.credits + cost })
+    .eq('id', userId);
+
+  if (updateError) console.error('Failed to refund credits:', updateError);
+}
+
 // Generate AI image
 router.post('/generate-image', authenticateToken, requireSubscription(MIN_PAID_PLAN), async (req, res) => {
   try {
@@ -341,8 +360,14 @@ router.post('/generate-video', authenticateToken, requireSubscription(MIN_PAID_P
       });
     }
 
-    // Generate video using Runway
-    const job = await generateVideoFromImage(imageUrl, prompt, { duration });
+    // Start the job with the configured provider (VIDEO_PROVIDER)
+    let job;
+    try {
+      job = await generateVideoFromImage(imageUrl, prompt, { duration });
+    } catch (providerError) {
+      await refundCredits(req.user.id, VIDEO_COST);
+      throw providerError;
+    }
 
     // Store job in database (will update with video URL when complete)
     const { error: saveError } = await supabase
@@ -355,6 +380,7 @@ router.post('/generate-video', authenticateToken, requireSubscription(MIN_PAID_P
           content: null, // Will be updated when video is ready
           metadata: {
             job_id: job.jobId,
+            provider: job.provider,
             status: job.status,
             prompt,
             duration,
@@ -373,6 +399,7 @@ router.post('/generate-video', authenticateToken, requireSubscription(MIN_PAID_P
       success: true,
       message: 'Video generation started',
       jobId: job.jobId,
+      provider: job.provider,
       status: job.status,
       creditsUsed: VIDEO_COST,
       creditsRemaining: creditCheck.remaining,
