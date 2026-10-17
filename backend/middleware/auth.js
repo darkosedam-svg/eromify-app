@@ -2,6 +2,12 @@ const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const { FREE_PLAN, normalizePlan, planMeets } = require('../config/plans');
 
+// Supabase user ids are UUIDs. The removed "mock mode" login signed tokens for
+// ids like "user_1792208310586_gqwff57mg"; refusing anything else revokes
+// those tokens without having to rotate JWT_SECRET.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRealUserId = (id) => typeof id === 'string' && UUID.test(id);
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -25,8 +31,23 @@ const authenticateToken = async (req, res, next) => {
     // Dev token bypass removed for security
 
     // Try to verify as JWT token first (for normal login)
+    let decoded = null;
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_jwt_secret');
+      // No fallback secret: a known default would let anyone sign tokens.
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      decoded = null;
+    }
+    if (decoded) {
+      if (!isRealUserId(decoded.userId)) {
+        // Issued by the removed "mock mode" login, which handed out tokens
+        // for made-up ids without checking the password. Refuse them.
+        console.log('Auth middleware - rejected token for non-Supabase user id');
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid token'
+        });
+      }
       console.log('Auth middleware - JWT token verified, user:', decoded.email);
       req.user = {
         id: decoded.userId,
@@ -34,12 +55,10 @@ const authenticateToken = async (req, res, next) => {
       };
       next();
       return;
-    } catch (jwtError) {
-      console.log('Auth middleware - JWT verification failed, trying Supabase...');
     }
 
     // If JWT fails, try Supabase token verification
-    console.log('Auth middleware - verifying token with Supabase...');
+    console.log('Auth middleware - JWT verification failed, verifying token with Supabase...');
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
@@ -125,5 +144,5 @@ const requireSubscription = (requiredPlan) => {
   };
 };
 
-module.exports = { authenticateToken, requireSubscription };
+module.exports = { authenticateToken, requireSubscription, isRealUserId };
 
