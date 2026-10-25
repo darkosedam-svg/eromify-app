@@ -1,8 +1,8 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const Joi = require('joi');
+const { isRealUserId } = require('../middleware/auth');
 require('dotenv').config();
 
 // Use fallback values for development if env vars are not set
@@ -25,6 +25,46 @@ const loginSchema = Joi.object({
   password: Joi.string().required()
 });
 
+// Authentication never falls back to a made-up session. Earlier versions
+// issued a signed "mock mode" token whenever Supabase returned an error or
+// was unreachable, and a wrong password is an error as far as Supabase is
+// concerned, so any email and password logged in. Every failure below now
+// returns an error and no token.
+
+const isSupabaseConfigured = () =>
+  Boolean(
+    process.env.SUPABASE_URL &&
+    process.env.SUPABASE_URL !== 'https://your-project.supabase.co' &&
+    process.env.SUPABASE_ANON_KEY &&
+    process.env.SUPABASE_ANON_KEY !== 'your-anon-key'
+  );
+
+function jwtSecret() {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not set');
+  }
+  return process.env.JWT_SECRET;
+}
+
+function signToken(user) {
+  return jwt.sign({ userId: user.id, email: user.email }, jwtSecret(), { expiresIn: '7d' });
+}
+
+function authUnavailable(res) {
+  return res.status(503).json({
+    success: false,
+    error: 'Authentication is temporarily unavailable. Please try again later.'
+  });
+}
+
+// Supabase answers a bad email/password with a 400. A 401/403 means our own
+// API key was rejected, and 5xx means Supabase itself failed; neither is the
+// user's fault, and neither may be treated as a successful login.
+function isCallerError(supabaseError) {
+  return supabaseError.status >= 400 && supabaseError.status < 500 &&
+    supabaseError.status !== 401 && supabaseError.status !== 403;
+}
+
 // Register new user
 router.post('/register', async (req, res) => {
   try {
@@ -38,42 +78,14 @@ router.post('/register', async (req, res) => {
 
     const { email, password, fullName } = value;
 
-    // Check if Supabase is properly configured
-    const isSupabaseConfigured = process.env.SUPABASE_URL && 
-                                 process.env.SUPABASE_URL !== 'https://your-project.supabase.co' &&
-                                 process.env.SUPABASE_ANON_KEY && 
-                                 process.env.SUPABASE_ANON_KEY !== 'your-anon-key';
-
-    if (!isSupabaseConfigured) {
-      console.log('Supabase not configured, using mock mode');
-      // Use mock mode
-      const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const token = jwt.sign(
-        { 
-          userId: mockUserId,
-          email: email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully (mock mode).',
-        token,
-        user: {
-          id: mockUserId,
-          email: email,
-          fullName: fullName
-        }
-      });
-      return;
+    if (!isSupabaseConfigured()) {
+      console.error('Registration refused: Supabase is not configured');
+      return authUnavailable(res);
     }
 
+    let data;
     try {
-      // Create user in Supabase
-      const { data, error: supabaseError } = await supabase.auth.signUp({
+      const result = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -82,90 +94,40 @@ router.post('/register', async (req, res) => {
           }
         }
       });
-
-      if (supabaseError) {
-        console.error('Supabase registration error:', supabaseError);
-        // Fallback to mock mode on error
-        const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const token = jwt.sign(
-          { 
-            userId: mockUserId,
-            email: email
-          },
-          process.env.JWT_SECRET || 'fallback_jwt_secret',
-          { expiresIn: '7d' }
-        );
-
-        res.status(201).json({
-          success: true,
-          message: 'User registered successfully (mock mode - Supabase error).',
-          token,
-          user: {
-            id: mockUserId,
-            email: email,
-            fullName: fullName || email.split('@')[0],
-            emailConfirmed: true
-          }
-        });
-        return;
-      }
-
-      if (!data.user) {
-        return res.status(400).json({
-          success: false,
-          error: 'Failed to create user'
-        });
-      }
-
-      // Generate JWT token for our API
-      const token = jwt.sign(
-        { 
-          userId: data.user.id,
-          email: data.user.email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully. Please check your email to confirm your account.',
-        token,
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          fullName: fullName,
-          emailConfirmed: data.user.email_confirmed_at ? true : false
+      if (result.error) {
+        console.error('Supabase registration error:', result.error);
+        if (isCallerError(result.error)) {
+          return res.status(400).json({
+            success: false,
+            error: result.error.message || 'Registration failed'
+          });
         }
-      });
-
+        return authUnavailable(res);
+      }
+      data = result.data;
     } catch (supabaseError) {
       console.error('Supabase connection error:', supabaseError);
-      // Fallback to mock mode if Supabase is not configured
-      const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const token = jwt.sign(
-        { 
-          userId: mockUserId,
-          email: email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
+      return authUnavailable(res);
+    }
 
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully (mock mode - Supabase connection error).',
-        token,
-        user: {
-          id: mockUserId,
-          email: email,
-          fullName: fullName || email.split('@')[0],
-          emailConfirmed: true
-        }
+    if (!data || !data.user) {
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to create user'
       });
     }
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully. Please check your email to confirm your account.',
+      token: signToken(data.user),
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        fullName: fullName,
+        emailConfirmed: data.user.email_confirmed_at ? true : false
+      }
+    });
 
   } catch (error) {
     console.error('Registration error:', error);
@@ -189,138 +151,59 @@ router.post('/login', async (req, res) => {
 
     const { email, password } = value;
 
-    // Check if Supabase is properly configured
-    const isSupabaseConfigured = process.env.SUPABASE_URL && 
-                                 process.env.SUPABASE_URL !== 'https://your-project.supabase.co' &&
-                                 process.env.SUPABASE_ANON_KEY && 
-                                 process.env.SUPABASE_ANON_KEY !== 'your-anon-key';
-
-    if (!isSupabaseConfigured) {
-      console.log('Supabase not configured, using mock mode for login');
-      // Use mock mode - accept any email/password
-      const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const token = jwt.sign(
-        { 
-          userId: mockUserId,
-          email: email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Login successful (mock mode)',
-        token,
-        user: {
-          id: mockUserId,
-          email: email,
-          fullName: email.split('@')[0],
-          avatar: null,
-          bio: null,
-          emailConfirmed: true
-        }
-      });
-      return;
+    if (!isSupabaseConfigured()) {
+      console.error('Login refused: Supabase is not configured');
+      return authUnavailable(res);
     }
 
+    let data;
     try {
-      // Sign in with Supabase
-      const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
+      const result = await supabase.auth.signInWithPassword({
         email,
         password
       });
-
-      if (supabaseError) {
-        console.error('Supabase login error:', supabaseError);
-        // Fallback to mock mode on error
-        const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const token = jwt.sign(
-          { 
-            userId: mockUserId,
-            email: email
-          },
-          process.env.JWT_SECRET || 'fallback_jwt_secret',
-          { expiresIn: '7d' }
-        );
-
-        res.json({
-          success: true,
-          message: 'Login successful (mock mode - Supabase error)',
-          token,
-          user: {
-            id: mockUserId,
-            email: email,
-            fullName: email.split('@')[0],
-            avatar: null,
-            bio: null,
-            emailConfirmed: true
-          }
-        });
-        return;
-      }
-
-      if (!data.user) {
-        return res.status(400).json({
-          success: false,
-          error: 'Login failed'
-        });
-      }
-
-      // Generate JWT token for our API
-      const token = jwt.sign(
-        { 
-          userId: data.user.id,
-          email: data.user.email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Login successful',
-        token,
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          fullName: data.user.user_metadata?.full_name || email.split('@')[0],
-          avatar: data.user.user_metadata?.avatar_url || null,
-          bio: data.user.user_metadata?.bio || null,
-          emailConfirmed: data.user.email_confirmed_at ? true : false
+      if (result.error) {
+        console.error('Supabase login error:', result.error.status, result.error.code, result.error.message);
+        if (result.error.code === 'email_not_confirmed') {
+          return res.status(403).json({
+            success: false,
+            error: 'Please confirm your email address before signing in.'
+          });
         }
-      });
-
+        if (isCallerError(result.error)) {
+          return res.status(401).json({
+            success: false,
+            error: 'Invalid email or password'
+          });
+        }
+        return authUnavailable(res);
+      }
+      data = result.data;
     } catch (supabaseError) {
       console.error('Supabase connection error:', supabaseError);
-      // Fallback to mock mode if Supabase is not configured
-      const mockUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const token = jwt.sign(
-        { 
-          userId: mockUserId,
-          email: email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
+      return authUnavailable(res);
+    }
 
-      res.json({
-        success: true,
-        message: 'Login successful (mock mode - Supabase connection error)',
-        token,
-        user: {
-          id: mockUserId,
-          email: email,
-          fullName: email.split('@')[0],
-          avatar: null,
-          bio: null,
-          emailConfirmed: true
-        }
+    if (!data || !data.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
       });
     }
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token: signToken(data.user),
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        fullName: data.user.user_metadata?.full_name || email.split('@')[0],
+        avatar: data.user.user_metadata?.avatar_url || null,
+        bio: data.user.user_metadata?.bio || null,
+        emailConfirmed: data.user.email_confirmed_at ? true : false
+      }
+    });
 
   } catch (error) {
     console.error('Login error:', error);
@@ -360,70 +243,36 @@ router.post('/google-callback', async (req, res) => {
       });
     }
 
+    let user;
     try {
       // Get user info from Supabase using the access token
-      const { data: { user }, error } = await supabase.auth.getUser(access_token);
-
-      if (error || !user) {
-        console.error('Supabase user fetch error:', error);
+      const result = await supabase.auth.getUser(access_token);
+      user = result.data?.user;
+      if (result.error || !user) {
+        console.error('Supabase user fetch error:', result.error);
         return res.status(400).json({
           success: false,
           error: 'Invalid access token'
         });
       }
-
-      // Generate JWT token for our API
-      const token = jwt.sign(
-        { 
-          userId: user.id,
-          email: user.email
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Google OAuth successful',
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          fullName: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
-          avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
-          bio: user.user_metadata?.bio || null,
-          emailConfirmed: user.email_confirmed_at ? true : false
-        }
-      });
-
     } catch (supabaseError) {
       console.error('Supabase connection error:', supabaseError);
-      // Fallback to mock mode if Supabase is not configured
-      const mockUserId = `google_user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const token = jwt.sign(
-        { 
-          userId: mockUserId,
-          email: 'user@google.com'
-        },
-        process.env.JWT_SECRET || 'fallback_jwt_secret',
-        { expiresIn: '7d' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Google OAuth successful (mock mode - Supabase not configured)',
-        token,
-        user: {
-          id: mockUserId,
-          email: 'user@google.com',
-          fullName: 'Google User',
-          avatar: null,
-          bio: null,
-          emailConfirmed: true
-        }
-      });
+      return authUnavailable(res);
     }
+
+    res.json({
+      success: true,
+      message: 'Google OAuth successful',
+      token: signToken(user),
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
+        avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+        bio: user.user_metadata?.bio || null,
+        emailConfirmed: user.email_confirmed_at ? true : false
+      }
+    });
 
   } catch (error) {
     console.error('Google OAuth callback error:', error);
@@ -447,8 +296,10 @@ router.get('/me', async (req, res) => {
       });
     }
 
-    // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_jwt_secret');
+    const decoded = jwt.verify(token, jwtSecret());
+    if (!isRealUserId(decoded.userId)) {
+      throw new Error('token was issued for a mock-mode user');
+    }
 
     res.json({
       success: true,
@@ -460,7 +311,7 @@ router.get('/me', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get user error:', error);
+    console.error('Get user error:', error.message);
     res.status(401).json({
       success: false,
       error: 'Invalid token'
@@ -469,4 +320,3 @@ router.get('/me', async (req, res) => {
 });
 
 module.exports = router;
-
