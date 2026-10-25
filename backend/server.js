@@ -10,8 +10,11 @@ require('dotenv').config();
 // Required in every environment. There are no built-in defaults: the old dev
 // defaults pointed at a Supabase project this repository does not own and
 // signed tokens with a published secret. Copy env.example to .env locally.
+// STRIPE_SECRET_KEY is listed because routes/payments.js builds its Stripe
+// client at load; without it the server died with Stripe's own "Neither
+// apiKey nor config.authenticator provided", which names no variable.
 {
-  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET'];
+  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'STRIPE_SECRET_KEY'];
   const missing = required.filter((k) => !process.env[k] || !process.env[k].trim());
   if (missing.length) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LandingPage from './pages/LandingPage'
@@ -24,6 +24,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import OAuthCallbackHandler from './pages/OAuthCallbackHandler'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import LandingPageSuccess from './pages/LandingPageSuccess'
+import NotFoundPage from './pages/NotFoundPage'
 import './App.css'
 
 // Force deployment
@@ -107,7 +108,7 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/oauth-callback" element={<OAuthCallbackHandler />} />
         <Route path="/landing-page" element={<LandingPageSuccess />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AuthProvider>
   )

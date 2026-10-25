@@ -23,10 +23,11 @@ A powerful SaaS platform that generates AI-powered influencer content and profil
 
 ### Prerequisites
 
-- Node.js 18+ 
-- npm or yarn
-- Supabase account
-- OpenAI API key
+- Node.js 20+
+- npm
+- Your own Supabase project
+- A Stripe account (test mode is fine)
+- OpenAI, Replicate and Runway API keys for the generation features
 
 ### Installation
 
@@ -40,9 +41,17 @@ There is no root `package.json`; install and run each one from its own directory
    npm install --prefix frontend
    ```
 
-3. Set up environment variables:
-   - Copy `backend/env.example` to `backend/.env` and `frontend/env.example` to `frontend/.env`
-   - Fill in your Supabase and OpenAI credentials
+3. Set up environment variables: copy `backend/env.example` to `backend/.env` and
+   `frontend/env.example` to `frontend/.env`, then fill them in. There are no built-in
+   defaults, so nothing points at someone else's services by accident.
+
+   | Where | Required to start | Needed for features |
+   |---|---|---|
+   | `backend/.env` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `STRIPE_SECRET_KEY` | `STRIPE_WEBHOOK_SECRET` (payments), `OPENAI_API_KEY` (text), `REPLICATE_API_TOKEN` (images), `RUNWAY_API_KEY` (video) |
+   | `frontend/.env` | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | `VITE_API_URL` (defaults to `http://localhost:3001/api` in development), `VITE_STRIPE_PUBLISHABLE_KEY` |
+
+   The backend refuses to start and names any missing required variable. The frontend shows a
+   "not configured" screen listing what is missing.
 
 4. Start the development servers, in two terminals:
    ```bash

@@ -1,12 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createClient } from '@supabase/supabase-js'
 import api from '../utils/api'
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-)
 
 export const useAuthStore = create(
   persist(
