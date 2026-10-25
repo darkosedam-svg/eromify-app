@@ -6,6 +6,14 @@
  * gate read a `subscriptions` table nothing ever wrote to.
  */
 const assert = require('node:assert/strict');
+
+// The routes loaded further down build Supabase clients at require time and
+// fail closed when configuration is missing; these stubs never reach a server.
+process.env.SUPABASE_URL ||= 'https://stub.supabase.co';
+process.env.SUPABASE_ANON_KEY ||= 'stub-anon-key';
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'stub-service-key';
+process.env.JWT_SECRET ||= 'test-jwt-secret';
+
 const {
   PRICING_PLANS,
   PLAN_LIMITS,

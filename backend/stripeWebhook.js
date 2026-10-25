@@ -5,11 +5,9 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY?.trim());
 const { createClient } = require('@supabase/supabase-js');
 const { PRICING_PLANS } = require('./config/plans');
 
-// Use fallback values for development if env vars are not set
-const supabaseUrl = process.env.SUPABASE_URL || 'https://eyteuevblxvhjhyeivqh.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5dGV1ZXZibHh2aGpoeWVpdnFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0MzYzNjAsImV4cCI6MjA3NTAxMjM2MH0.aTPGEVfNom78Cm9ZmwbMwyzTJ0KkqUE0uIHjBo-MZUA';
+const { supabaseUrl, supabaseServiceKey } = require('./config/env');
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(supabaseUrl(), supabaseServiceKey());
 
 
 // This route must be mounted before express.json so we can verify the signature

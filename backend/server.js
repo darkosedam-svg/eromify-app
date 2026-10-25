@@ -7,24 +7,17 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
-// Enforce required env in production to avoid silent fallbacks
-if (process.env.NODE_ENV === 'production') {
-  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'JWT_SECRET', 'FRONTEND_URL'];
-  const missing = required.filter((k) => !process.env[k]);
+// Required in every environment. There are no built-in defaults: the old dev
+// defaults pointed at a Supabase project this repository does not own and
+// signed tokens with a published secret. Copy env.example to .env locally.
+{
+  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET'];
+  const missing = required.filter((k) => !process.env[k] || !process.env[k].trim());
   if (missing.length) {
-    throw new Error(`Missing required environment variables in production: ${missing.join(', ')}`);
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
-}
-// Reasonable defaults for local development only
-if (process.env.NODE_ENV !== 'production') {
-  if (!process.env.SUPABASE_URL) {
-    process.env.SUPABASE_URL = 'https://eyteuevblxvhjhyeivqh.supabase.co';
-  }
-  if (!process.env.SUPABASE_ANON_KEY) {
-    process.env.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5dGV1ZXZibHh2aGpoeWVpdnFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0MzYzNjAsImV4cCI6MjA3NTAxMjM2MH0.aTPGEVfNom78Cm9ZmwbMwyzTJ0KkqUE0uIHjBo-MZUA';
-  }
-  if (!process.env.JWT_SECRET) {
-    process.env.JWT_SECRET = 'your_jwt_secret_key_dev';
+  if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+    throw new Error('Missing required environment variable in production: FRONTEND_URL');
   }
   if (!process.env.FRONTEND_URL) {
     process.env.FRONTEND_URL = 'http://localhost:5173';

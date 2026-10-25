@@ -4,3 +4,10 @@ node_modules/
 dist/
 .claude/settings.local.json
 deployment/
+
+# Environment files are never committed; copy the env.example next to each one.
+.env
+.env.*
+!.env.example
+!env.example
+temp-backend-deploy/
